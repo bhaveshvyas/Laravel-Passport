@@ -54,4 +54,71 @@ class AuthController extends BaseController
             return $this->sendError('Unauthorised.', ['error' => 'Unauthorised']);
         }
     }
+
+    /**
+     * forget password
+     *
+     * @param Request $request
+     * @return JsonResponse
+     * @author BV
+     */
+    public function forgetPassword(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|exists:sp_users',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation Error.', $validator->errors());
+        }
+
+        PasswordResetToken::where('email', $request->email)->delete();
+
+        $token = mt_rand(100000, 999999);
+
+        $passwordReset = PasswordResetToken::create([
+            'email' => $request->email,
+            'token' => $token,
+        ]);
+
+        // Send email to user
+        Mail::to($request->email)
+            ->send(new SendCodeResetPassword($token));
+
+        return $this->sendResponse([], 'Reset code sent to your email.');
+    }
+
+    /**
+     * reset password with token
+     *
+     * @param Request $request
+     * @return JsonResponse
+     * @author BV
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token'    => 'required|string|exists:password_reset_tokens',
+            'password' => 'required|string|min:6',
+        ]);
+
+        // find the code
+        $passwordReset = PasswordResetToken::where('token', $request->token)->first();
+
+        if ($passwordReset) {
+
+            if ($passwordReset->created_at > now()->addHour()) {
+                $passwordReset->delete();
+                return $this->sendError('Unauthorised.', "Code is expired.");
+            }
+
+            $user           = User::firstWhere('email', $passwordReset->email);
+            $user->password = bcrypt($request->password);
+            $user->save();
+
+            $passwordReset->delete();
+        }
+
+        return $this->sendResponse([], 'Password reset successfully.');
+    }
 }

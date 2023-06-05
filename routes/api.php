@@ -21,6 +21,8 @@ Route::group(['middleware' => 'api', 'prefix' => 'v1.1'], function () {
         Route::post('login', 'login');
         Route::post('register', 'register');
         Route::post('logout', 'logout');
+        Route::post('forget_password', 'forgetPassword');
+        Route::post('reset_password', 'resetPassword');
     });
 
     Route::middleware('auth:api')->group(function () {
